@@ -1,5 +1,37 @@
 import apiClient from './client';
 
+export interface AdminOrderPackageSelection {
+  componentKey: string;
+  componentLabel: string;
+  fixedQuantity?: number | null;
+  selections: Array<{
+    subtypeKey: string;
+    subtypeLabel: string;
+    quantity: number;
+    unitPrice?: number;
+    lineTotal?: number;
+  }>;
+}
+
+export interface AdminOrderSelectedExtra {
+  extraId: string;
+  label: string;
+  price: number;
+}
+
+export interface AdminOrderItem {
+  menuItemId: string;
+  name: string;
+  quantity: number;
+  price: number;
+  specialInstructions?: string;
+  mealSlot?: 'lunch' | 'dinner';
+  menuType?: 'package' | 'standalone_extra';
+  packageSelections?: AdminOrderPackageSelection[];
+  selectedExtras?: AdminOrderSelectedExtra[];
+  extrasTotal?: number;
+}
+
 export interface AdminOrderListItem {
   id: string;
   orderNumber: string;
@@ -27,13 +59,7 @@ export interface AdminOrderDetail {
   deliveryFee: number;
   discount: number;
   total: number;
-  items: Array<{
-    menuItemId: string;
-    name: string;
-    quantity: number;
-    price: number;
-    specialInstructions?: string;
-  }>;
+  items: AdminOrderItem[];
   notes: string | null;
   cancelReason: string | null;
   couponCode: string | null;
