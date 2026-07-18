@@ -12,5 +12,5 @@ export const SOCKET_URL = import.meta.env.PROD
   ? PRODUCTION_API_ORIGIN
   : (import.meta.env.VITE_SOCKET_URL ?? localSocket);
 
-export const GOOGLE_MAPS_API_KEY =
-  import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? 'AIzaSyAyfxZcZayjZZUoX7UGP4a7jm6fEmkscKs';
+/** Google Maps — set in apps/admin-panel/.env as VITE_GOOGLE_MAPS_API_KEY */
+export const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY?.trim() || '';

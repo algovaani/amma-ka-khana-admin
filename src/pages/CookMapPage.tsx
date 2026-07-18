@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Alert,
@@ -15,9 +15,12 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
-import { MapContainer, Marker, TileLayer, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import 'leaflet.markercluster';
+import 'leaflet.markercluster/dist/MarkerCluster.css';
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
@@ -155,6 +158,54 @@ const availabilityColor = (value: string): 'success' | 'warning' | 'default' | '
     return 'error';
   }
   return 'default';
+};
+
+const CookMarkerCluster = ({
+  cooks,
+  onCookSelect,
+}: {
+  cooks: CookMapItem[];
+  onCookSelect: (cook: CookMapItem) => void;
+}) => {
+  const map = useMap();
+
+  useEffect(() => {
+    const clusterGroup = L.markerClusterGroup({
+      showCoverageOnHover: false,
+      maxClusterRadius: 56,
+      spiderfyOnMaxZoom: true,
+      disableClusteringAtZoom: 17,
+      animate: true,
+      iconCreateFunction: (cluster) => {
+        const count = cluster.getChildCount();
+        const size = count > 25 ? 52 : count > 10 ? 46 : 40;
+        const fontSize = count > 25 ? 15 : count > 10 ? 14 : 13;
+
+        return L.divIcon({
+          html: `<div class="cook-cluster-bubble" style="width:${size}px;height:${size}px;font-size:${fontSize}px;"><span>${count}</span></div>`,
+          className: 'cook-cluster-marker',
+          iconSize: L.point(size, size),
+        });
+      },
+    });
+
+    cooks.forEach((cook) => {
+      const icon = createCookMarkerIcon(cook);
+      const marker = L.marker([cook.lat, cook.lng], icon ? { icon } : undefined);
+      marker.on('mouseover', () => onCookSelect(cook));
+      marker.on('click', () => onCookSelect(cook));
+      clusterGroup.addLayer(marker);
+    });
+
+    map.addLayer(clusterGroup);
+
+    return () => {
+      map.removeLayer(clusterGroup);
+      clusterGroup.clearLayers();
+    };
+  }, [cooks, map, onCookSelect]);
+
+  return null;
 };
 
 const FitCookBounds = ({ cooks }: { cooks: CookMapItem[] }) => {
@@ -342,6 +393,10 @@ const CookMapPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [hoveredCook, setHoveredCook] = useState<CookMapItem | null>(null);
 
+  const handleCookSelect = useCallback((cook: CookMapItem) => {
+    setHoveredCook(cook);
+  }, []);
+
   useEffect(() => {
     cooksApi
       .mapCooks()
@@ -377,6 +432,24 @@ const CookMapPage = () => {
           '.leaflet-marker-icon.cook-map-marker': {
             overflow: 'visible !important',
           },
+          '.leaflet-div-icon.cook-cluster-marker': {
+            background: 'transparent !important',
+            border: 'none !important',
+          },
+          '.cook-cluster-bubble': {
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #43a047 0%, #2e7d32 100%)',
+            color: '#fff',
+            fontWeight: 700,
+            border: '3px solid #fff',
+            boxShadow: '0 2px 12px rgba(0,0,0,0.28)',
+          },
+          '.marker-cluster-small, .marker-cluster-medium, .marker-cluster-large': {
+            background: 'transparent !important',
+          },
         }}
       />
       <Box
@@ -394,7 +467,7 @@ const CookMapPage = () => {
             Cook Map
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            {cooks.length} registered cook pin(s) on map
+            {cooks.length} registered cook pin(s) · clustered map view
             {withoutLocation > 0 ? ` · ${withoutLocation} without GPS location` : ''}
             {cooks.some(isCookOffline)
               ? ` · ${cooks.filter(isCookOffline).length} offline (shown blurred)`
@@ -462,18 +535,7 @@ const CookMapPage = () => {
                 maxZoom={19}
               />
               <FitCookBounds cooks={cooks} />
-              {cooks.map((cook) => (
-                <Marker
-                  key={cook.id}
-                  position={[cook.lat, cook.lng]}
-                  title={cook.name}
-                  icon={createCookMarkerIcon(cook)}
-                  eventHandlers={{
-                    mouseover: () => setHoveredCook(cook),
-                    click: () => setHoveredCook(cook),
-                  }}
-                />
-              ))}
+              <CookMarkerCluster cooks={cooks} onCookSelect={handleCookSelect} />
             </MapContainer>
           )}
         </Box>

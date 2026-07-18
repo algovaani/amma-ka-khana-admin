@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import {
   Alert,
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Box,
   Button,
   Chip,
@@ -26,7 +29,10 @@ import MapIcon from '@mui/icons-material/Map';
 import CloudOffIcon from '@mui/icons-material/CloudOff';
 import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
 import PaymentsIcon from '@mui/icons-material/Payments';
-import { settingsApi, OnboardingFees } from '../services/api/settingsApi';
+import CampaignIcon from '@mui/icons-material/Campaign';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import { settingsApi, OnboardingFees, PaymentGatewayConfig } from '../services/api/settingsApi';
 
 type SettingCardProps = {
   title: string;
@@ -129,6 +135,13 @@ const SettingsPage = () => {
   const [appsBlockedMessage, setAppsBlockedMessage] = useState('');
   const [appsBlockedSubMessage, setAppsBlockedSubMessage] = useState('');
   const [savingAppAccess, setSavingAppAccess] = useState(false);
+  const [cookHomeCardEnabled, setCookHomeCardEnabled] = useState(true);
+  const [cookHomeCardTitle, setCookHomeCardTitle] = useState('What happens next?');
+  const [cookHomeCardMessage, setCookHomeCardMessage] = useState('');
+  const [cookHomeCardSubMessage, setCookHomeCardSubMessage] = useState('');
+  const [savingCookHomeCard, setSavingCookHomeCard] = useState(false);
+  const [paymentGateways, setPaymentGateways] = useState<PaymentGatewayConfig[]>([]);
+  const [savingPaymentGateways, setSavingPaymentGateways] = useState(false);
   const [referralEnabled, setReferralEnabled] = useState(true);
   const [referralTrigger, setReferralTrigger] = useState<'signup' | 'first_order'>('first_order');
   const [customerReferrerReward, setCustomerReferrerReward] = useState(50);
@@ -153,9 +166,11 @@ const SettingsPage = () => {
       settingsApi.getPaymentLimits(),
       settingsApi.getServerIssue(),
       settingsApi.getAppAccess(),
+      settingsApi.getCookHomeCard(),
+      settingsApi.getPaymentGateways(),
       settingsApi.getReferralSettings(),
     ])
-      .then(([feesRes, radiusRes, menuPriceRes, generalRes, paymentLimitsRes, serverIssueRes, appAccessRes, referralRes]) => {
+      .then(([feesRes, radiusRes, menuPriceRes, generalRes, paymentLimitsRes, serverIssueRes, appAccessRes, cookHomeCardRes, paymentGatewaysRes, referralRes]) => {
         setFees(feesRes.data.fees);
         setRouteCookRadiusKm(radiusRes.data.routeCookRadiusKm);
         setMenuPackagePrice(menuPriceRes.data.menuPackagePrice);
@@ -175,6 +190,11 @@ const SettingsPage = () => {
         setAppsBlockedTitle(appAccessRes.data.title);
         setAppsBlockedMessage(appAccessRes.data.message);
         setAppsBlockedSubMessage(appAccessRes.data.subMessage);
+        setCookHomeCardEnabled(cookHomeCardRes.data.enabled);
+        setCookHomeCardTitle(cookHomeCardRes.data.title);
+        setCookHomeCardMessage(cookHomeCardRes.data.message);
+        setCookHomeCardSubMessage(cookHomeCardRes.data.subMessage);
+        setPaymentGateways(paymentGatewaysRes.data.gateways ?? []);
         setReferralEnabled(referralRes.data.enabled);
         setReferralTrigger(referralRes.data.trigger);
         setCustomerReferrerReward(referralRes.data.customerReferrerReward);
@@ -331,6 +351,65 @@ const SettingsPage = () => {
       setError(err instanceof Error ? err.message : 'Failed to update app access');
     } finally {
       setSavingAppAccess(false);
+    }
+  };
+
+  const handleSaveCookHomeCard = async () => {
+    setSavingCookHomeCard(true);
+    clearAlerts();
+    try {
+      const res = await settingsApi.updateCookHomeCard({
+        enabled: cookHomeCardEnabled,
+        title: cookHomeCardTitle.trim(),
+        message: cookHomeCardMessage.trim(),
+        subMessage: cookHomeCardSubMessage.trim() || undefined,
+      });
+      setCookHomeCardEnabled(res.data.enabled);
+      setCookHomeCardTitle(res.data.title);
+      setCookHomeCardMessage(res.data.message);
+      setCookHomeCardSubMessage(res.data.subMessage);
+      setSuccess(
+        res.data.enabled
+          ? 'Cook home card saved — cooks will see the latest message on top'
+          : 'Cook home card hidden in cook app'
+      );
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to update cook home card');
+    } finally {
+      setSavingCookHomeCard(false);
+    }
+  };
+
+  const updateGatewayField = <K extends keyof PaymentGatewayConfig>(
+    id: string,
+    field: K,
+    value: PaymentGatewayConfig[K]
+  ) => {
+    setPaymentGateways((prev) =>
+      prev.map((gw) => (gw.id === id ? { ...gw, [field]: value } : gw))
+    );
+  };
+
+  const handleSavePaymentGateways = async () => {
+    setSavingPaymentGateways(true);
+    clearAlerts();
+    try {
+      const activeWithoutKey = paymentGateways.find((g) => g.isActive && !g.keyId.trim());
+      if (activeWithoutKey) {
+        setError(`${activeWithoutKey.displayName}: Key ID is required when gateway is active`);
+        setSavingPaymentGateways(false);
+        return;
+      }
+      const res = await settingsApi.updatePaymentGateways({ gateways: paymentGateways });
+      setPaymentGateways(res.data.gateways);
+      const activeCount = res.data.gateways.filter((g) => g.isActive).length;
+      setSuccess(
+        `Payment gateways saved — ${activeCount} active gateway${activeCount === 1 ? '' : 's'} visible in apps`
+      );
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to update payment gateways');
+    } finally {
+      setSavingPaymentGateways(false);
     }
   };
 
@@ -501,6 +580,84 @@ const SettingsPage = () => {
           </SettingCard>
         </Grid>
 
+        <Grid item xs={12}>
+          <SettingCard
+            title="Cook app home card"
+            description="Show one admin message card at the top of the cook dashboard (e.g. What happens next?). Updating and saving shows the new card on top."
+            icon={<CampaignIcon fontSize="small" />}
+            highlight={cookHomeCardEnabled}
+            highlightColor="success"
+            action={
+              <Button
+                variant="contained"
+                onClick={handleSaveCookHomeCard}
+                disabled={
+                  loading ||
+                  savingCookHomeCard ||
+                  (cookHomeCardEnabled &&
+                    (!cookHomeCardTitle.trim() || !cookHomeCardMessage.trim()))
+                }
+              >
+                {savingCookHomeCard ? 'Saving...' : 'Save cook card'}
+              </Button>
+            }
+          >
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={cookHomeCardEnabled}
+                  onChange={(e) => setCookHomeCardEnabled(e.target.checked)}
+                  disabled={loading || savingCookHomeCard}
+                  color="success"
+                />
+              }
+              label={
+                <Typography fontWeight={600}>
+                  {cookHomeCardEnabled ? 'Card is visible in cook app' : 'Card is hidden'}
+                </Typography>
+              }
+              sx={{ mb: 2 }}
+            />
+            <Grid container spacing={2}>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Card title"
+                  value={cookHomeCardTitle}
+                  onChange={(e) => setCookHomeCardTitle(e.target.value)}
+                  disabled={loading || savingCookHomeCard}
+                  placeholder="What happens next?"
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Main message"
+                  value={cookHomeCardMessage}
+                  onChange={(e) => setCookHomeCardMessage(e.target.value)}
+                  multiline
+                  minRows={3}
+                  disabled={loading || savingCookHomeCard}
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Sub message / tip (optional)"
+                  value={cookHomeCardSubMessage}
+                  onChange={(e) => setCookHomeCardSubMessage(e.target.value)}
+                  multiline
+                  minRows={3}
+                  disabled={loading || savingCookHomeCard}
+                />
+              </Grid>
+            </Grid>
+          </SettingCard>
+        </Grid>
+
         {/* General platform */}
         <Grid item xs={12} md={6}>
           <SettingCard
@@ -654,6 +811,192 @@ const SettingsPage = () => {
                 />
               </Grid>
             </Grid>
+          </SettingCard>
+        </Grid>
+
+        {/* Payment gateways */}
+        <Grid item xs={12}>
+          <SettingCard
+            title="Payment Gateway Settings"
+            description="Manage up to 10 payment gateways. Activate Razorpay with Key ID + Key Secret for live in-app checkout (wallet top-up & cook onboarding). Only active gateways appear in apps."
+            icon={<AccountBalanceWalletIcon fontSize="small" />}
+            highlight={paymentGateways.some((g) => g.isActive)}
+            highlightColor="success"
+            action={
+              <Button
+                variant="contained"
+                onClick={handleSavePaymentGateways}
+                disabled={loading || savingPaymentGateways}
+              >
+                {savingPaymentGateways ? 'Saving...' : 'Save Gateways'}
+              </Button>
+            }
+          >
+            <Stack direction="row" spacing={1} sx={{ mb: 2 }} flexWrap="wrap" useFlexGap>
+              <Chip
+                size="small"
+                color="success"
+                label={`${paymentGateways.filter((g) => g.isActive).length} active`}
+              />
+              <Chip size="small" variant="outlined" label={`${paymentGateways.length} / 10 configured`} />
+            </Stack>
+
+            <Stack spacing={1}>
+              {paymentGateways.map((gw) => (
+                <Accordion
+                  key={gw.id}
+                  disableGutters
+                  elevation={0}
+                  sx={{
+                    border: '1px solid',
+                    borderColor: gw.isActive ? 'success.main' : 'divider',
+                    borderRadius: '8px !important',
+                    '&:before': { display: 'none' },
+                    overflow: 'hidden',
+                  }}
+                >
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Stack
+                      direction="row"
+                      spacing={1.5}
+                      alignItems="center"
+                      sx={{ width: '100%', pr: 1 }}
+                    >
+                      <Box onClick={(e) => e.stopPropagation()}>
+                        <FormControlLabel
+                          control={
+                            <Switch
+                              size="small"
+                              checked={gw.isActive}
+                              onChange={(e) => updateGatewayField(gw.id, 'isActive', e.target.checked)}
+                              disabled={loading || savingPaymentGateways}
+                            />
+                          }
+                          label=""
+                          sx={{ mr: 0 }}
+                        />
+                      </Box>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="subtitle2" fontWeight={700}>
+                          {gw.displayName}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {gw.provider} · {gw.mode.toUpperCase()}
+                          {gw.isActive ? ' · visible in apps' : ' · hidden'}
+                        </Typography>
+                      </Box>
+                      <Chip
+                        size="small"
+                        label={gw.isActive ? 'Active' : 'Inactive'}
+                        color={gw.isActive ? 'success' : 'default'}
+                        variant={gw.isActive ? 'filled' : 'outlined'}
+                      />
+                    </Stack>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Display name"
+                          value={gw.displayName}
+                          onChange={(e) => updateGatewayField(gw.id, 'displayName', e.target.value)}
+                          disabled={loading || savingPaymentGateways}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          select
+                          fullWidth
+                          size="small"
+                          label="Mode"
+                          value={gw.mode}
+                          onChange={(e) =>
+                            updateGatewayField(gw.id, 'mode', e.target.value as 'test' | 'live')
+                          }
+                          disabled={loading || savingPaymentGateways}
+                        >
+                          <MenuItem value="test">Test</MenuItem>
+                          <MenuItem value="live">Live</MenuItem>
+                        </TextField>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Key ID / Public key"
+                          value={gw.keyId}
+                          onChange={(e) => updateGatewayField(gw.id, 'keyId', e.target.value)}
+                          disabled={loading || savingPaymentGateways}
+                          helperText="Sent to apps when gateway is active"
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Key secret"
+                          type="password"
+                          value={gw.keySecret}
+                          onChange={(e) => updateGatewayField(gw.id, 'keySecret', e.target.value)}
+                          disabled={loading || savingPaymentGateways}
+                          helperText="Server-side only — never sent to apps"
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Merchant ID"
+                          value={gw.merchantId}
+                          onChange={(e) => updateGatewayField(gw.id, 'merchantId', e.target.value)}
+                          disabled={loading || savingPaymentGateways}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Webhook secret"
+                          type="password"
+                          value={gw.webhookSecret}
+                          onChange={(e) => updateGatewayField(gw.id, 'webhookSecret', e.target.value)}
+                          disabled={loading || savingPaymentGateways}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Sort order"
+                          type="number"
+                          value={gw.sortOrder}
+                          onChange={(e) =>
+                            updateGatewayField(gw.id, 'sortOrder', Number(e.target.value) || 0)
+                          }
+                          disabled={loading || savingPaymentGateways}
+                          inputProps={{ min: 0, max: 100 }}
+                        />
+                      </Grid>
+                      <Grid item xs={12}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Extra config (JSON / notes)"
+                          value={gw.extraConfig}
+                          onChange={(e) => updateGatewayField(gw.id, 'extraConfig', e.target.value)}
+                          disabled={loading || savingPaymentGateways}
+                          multiline
+                          minRows={2}
+                          placeholder='e.g. {"clientId":"...","environment":"sandbox"}'
+                        />
+                      </Grid>
+                    </Grid>
+                  </AccordionDetails>
+                </Accordion>
+              ))}
+            </Stack>
           </SettingCard>
         </Grid>
 

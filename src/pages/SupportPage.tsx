@@ -168,7 +168,7 @@ const SupportPage = () => {
           <InputLabel>Type</InputLabel>
           <Select label="Type" value={type} onChange={(e) => setType(e.target.value)}>
             <MenuItem value="">All</MenuItem>
-            {['order_issue', 'wallet', 'kyc', 'payment', 'account', 'general'].map((item) => (
+            {['order_issue', 'delivery', 'food_quality', 'wallet', 'kyc', 'fssai', 'earnings', 'shop', 'menu', 'payment', 'account', 'general'].map((item) => (
               <MenuItem key={item} value={item}>{formatLabel(item)}</MenuItem>
             ))}
           </Select>
@@ -277,7 +277,7 @@ const SupportPage = () => {
           <FormControl fullWidth>
             <InputLabel>Type</InputLabel>
             <Select label="Type" value={newTicket.type} onChange={(e) => setNewTicket((p) => ({ ...p, type: e.target.value }))}>
-              {['order_issue', 'wallet', 'kyc', 'payment', 'account', 'general'].map((item) => (
+              {['order_issue', 'delivery', 'food_quality', 'wallet', 'kyc', 'fssai', 'earnings', 'shop', 'menu', 'payment', 'account', 'general'].map((item) => (
                 <MenuItem key={item} value={item}>{formatLabel(item)}</MenuItem>
               ))}
             </Select>

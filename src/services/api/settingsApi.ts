@@ -63,6 +63,33 @@ export interface AppAccessSettings {
   supportEmail: string;
 }
 
+export interface CookHomeCardSettings {
+  enabled: boolean;
+  title: string;
+  message: string;
+  subMessage: string;
+  updatedAt: string | null;
+}
+
+export interface PaymentGatewayConfig {
+  id: string;
+  provider: string;
+  displayName: string;
+  isActive: boolean;
+  sortOrder: number;
+  mode: 'test' | 'live';
+  keyId: string;
+  keySecret: string;
+  merchantId: string;
+  webhookSecret: string;
+  extraConfig: string;
+}
+
+export interface PaymentGatewaysSettings {
+  gateways: PaymentGatewayConfig[];
+  updatedAt: string | null;
+}
+
 export interface ReferralSettings {
   enabled: boolean;
   trigger: 'signup' | 'first_order';
@@ -175,6 +202,29 @@ export const settingsApi = {
   }) =>
     apiClient.patch('/admin/settings/app-access', payload) as Promise<{
       data: AppAccessSettings;
+      message: string;
+    }>,
+
+  getCookHomeCard: () =>
+    apiClient.get('/admin/settings/cook-home-card') as Promise<{ data: CookHomeCardSettings }>,
+
+  updateCookHomeCard: (payload: {
+    enabled: boolean;
+    title: string;
+    message: string;
+    subMessage?: string;
+  }) =>
+    apiClient.patch('/admin/settings/cook-home-card', payload) as Promise<{
+      data: CookHomeCardSettings;
+      message: string;
+    }>,
+
+  getPaymentGateways: () =>
+    apiClient.get('/admin/settings/payment-gateways') as Promise<{ data: PaymentGatewaysSettings }>,
+
+  updatePaymentGateways: (payload: { gateways: PaymentGatewayConfig[] }) =>
+    apiClient.patch('/admin/settings/payment-gateways', payload) as Promise<{
+      data: PaymentGatewaysSettings;
       message: string;
     }>,
 
